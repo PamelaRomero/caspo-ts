@@ -10,8 +10,9 @@ obsSpec(E,T,S) :- clamped(E,S,X), timepoint(E,T).
 species(S) :- node(S,_).
 unobsSpec(E,T,S) :- timepoint(E,T), species(S), not obsSpec(E,T,S).
 
-measured(E,T,S,1) :- obs(E,T,S,X), X >= 50.
-measured(E,T,S,0) :- obs(E,T,S,X), X < 50.
+measured(E,T,S,2) :- obs(E,T,S,X), X >= 60.
+measured(E,T,S,1) :- obs(E,T,S,X), X < 60, X >= 30.
+measured(E,T,S,0) :- obs(E,T,S,X), X < 30.
 
 obsSpec(E,T,S) :- obs(E,T,S,X).
 obsSpec(E,T,S) :- clamped(E,S,X), timepoint(E,T).
@@ -29,42 +30,80 @@ last(E,T) :- maxtp(E,T).
 clause(X) :- clause(X,_,_).
 
 toGuess(E,T,S) :- obs(E,T,S,X).
-1{guessed(E,T,S,(1;0))}1  :- toGuess(E,T,S).
-1{guessed(E,T,S,(1;0))}1  :- unobsSpec(E,T,S).
-1{measured(E,T,S,(1;0))}1 :- unobsSpec(E,T,S).
+1{guessed(E,T,S,(2;1;0))}1  :- toGuess(E,T,S).
+1{guessed(E,T,S,(2;1;0))}1  :- unobsSpec(E,T,S).
+1{measured(E,T,S,(2;1;0))}1 :- unobsSpec(E,T,S).
 %no errors in the unmeasured species
 :-  unobsSpec(E,T,S), measured(E,T,S,V), not guessed(E,T,S,V).
 
 %i have to have the same precondition (time 0) in all experiments
 :- unobsSpec(E1,0,S), unobsSpec(E2,0,S), E1 < E2, measured(E1,0,S,V), not measured(E2,0,S,V).
 
+
 %% support consistency
 
 supp(E,T,L,V) :- guessed(E,T,L,V), nextTP(E,T,_).
 convert(-1,0).
 convert(1,1).
+convert(2,2).
 supp(E,T,L,V2) :- clamped(E,L,V1), convert(V1,V2), nextTP(E,T,_).
 
-ex_supp(E,T,clause,X,1) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C); timepoint(E,T), clause(X).
+% We derive all values that we can potentially reach by a transition from the state u:
+
+%ex_supp(E,T,clause,X,1) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C); timepoint(E,T), clause(X).
+
+ex_supp(E,T,clause,X,1) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C), V != 2; timepoint(E,T), clause(X).   
+ex_supp(E,T,clause,X,2) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C), V = 2; timepoint(E,T), clause(X).   
+
+%ex_supp(E,T,clause,X,1) :- supp(E,T,L,1) : clause(X,L,1), convert(1,1); timepoint(E,T), clause(X).
+%ex_supp(E,T,clause,X,1) :- supp(E,T,L,0) : clause(X,L,-1), convert(-1,0); timepoint(E,T), clause(X).
+%ex_supp(E,T,clause,X,2) :- supp(E,T,L,2) : clause(X,L,2), convert(2,2); timepoint(E,T), clause(X).
+
 ex_supp(E,T,clause,X,0) :- supp(E,T,L,0), clause(X,L,1).
 ex_supp(E,T,clause,X,0) :- supp(E,T,L,1), clause(X,L,-1).
 
+ex_supp(E,T,clause,X,0) :- supp(E,T,L,0), clause(X,L,2).
+ex_supp(E,T,clause,X,0) :- supp(E,T,L,2), clause(X,L,-1).
+
+ex_supp(E,T,clause,X,0) :- supp(E,T,L,1), clause(X,L,2).
+ex_supp(E,T,clause,X,0) :- supp(E,T,L,2), clause(X,L,1).
+
+
 dnf(D) :- dnf(D,_).
 ex_supp(E,T,dnf,X,1) :- ex_supp(E,T,clause,C,1), dnf(X,C).
+ex_supp(E,T,dnf,X,2) :- ex_supp(E,T,clause,C,2), dnf(X,C).
 ex_supp(E,T,dnf,X,0) :- ex_supp(E,T,clause,C,0) : dnf(X,C); dnf(X), nextTP(E,T,_).
 
-opposite(1,0).
 opposite(0,1).
+opposite(0,2).
+opposite(1,0).
+opposite(1,2).
+opposite(2,0).
+opposite(2,1).
+
 clamped(E,S) :- clamped(E,S,V).
+
 %if we do not have guessed the opposing thing, we can have external support
+
 ex_supp(E,T,L,X) :- formula(L,D), ex_supp(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), not guessed(E,T2,L,Y), nextTP(E,T,T2).
+
 % if we guessed the opposing thing, the opposing thing needs to be justified before we can give support
+
 {ex_supp(E,T,L,X)} :- formula(L,D), ex_supp(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), guessed(E,T2,L,Y), nextTP(E,T,T2).
 
 supp(E,T,L,X) :- ex_supp(E,T,L,X).
 
+% The next state y belongs to the meta-state u (y ∈ u):
+% The rule ensures that the state at time-point T + 1 is in the meta-state reachable from time-point T .
+
 :- guessed(E,T2,S,V), not supp(E,T1,S,V), nextTP(E,T1,T2).
+
+% If for some i, x_i = y_i and {0, 1} = u_i then there exists a transition f_i(z) = y_i:
+% The rule implements the condition in the third item in the definition of support consistency described in the Formal Description section. It states
+% that if a state at time-point T + 1 has value V and in the update predicate it has value W then there must exist an update in-between to recover the final value V .
+
 :- guessed(E,T2,L,Y), opposite(X,Y), ex_supp(E,T1,L,X), not ex_supp(E,T1,L,Y), nextTP(E,T1,T2).
+
 
 #program guess_bn.
 
@@ -116,12 +155,15 @@ path(U,V) :- path(U,W); path(W,V).
 
 #program minimize_weight.
 
-#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=50-M, M < 50}.
-#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-49, M >= 50}.
+#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=30-M, M < 30}.
+#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=|M-45|, M >= 30, M < 60}.
+#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-59, M >= 60}.
 
 #program fix_weight(minWeight, maxWeight).
-:- not minWeight #sum {Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=50-M, M < 50;
-                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-49, M >= 50} maxWeight.
+:- not minWeight #sum {Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=30-M, M < 30;
+                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=|M-45|, M >= 30, M < 60;
+                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-59, M >= 60} maxWeight.
+
 
 #show formula/2.
 #show dnf/2.
