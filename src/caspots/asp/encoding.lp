@@ -60,32 +60,32 @@ meta(E,T,L,V2) :- clamped(E,L,V1), V1 = -1, convert(V1,V2), nextTP(E,T,_).
 % Clause update
 
 % We check whether the arguments are valid, this means if the value of the clause matches the value of the meta-state within the same argument, if it is valid, it will retain its value.
-arguments_valid(E,T,X,L,C) :- meta(E,T,L,C), clause(X,L,V), convert(V,C), timepoint(E,T), clause(X).
+arg_valid(E,T,X,L,C) :- meta(E,T,L,C), clause(X,L,V), convert(V,C), timepoint(E,T), clause(X).
 
 % If the values ​​are not valid, the argument will have a value of zero. It is invalid when the clause value is -1 and the meta-state is 1 or 2, or if the clause value is 1 and the meta-state is 0.
-arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,1), clause(X,L,-1), timepoint(E,T), clause(X).
-arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,2), clause(X,L,-1), timepoint(E,T), clause(X).
-arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,0), clause(X,L,1), timepoint(E,T), clause(X).
+arg_no_valid(E,T,X,L,0) :- meta(E,T,L,1), clause(X,L,-1), timepoint(E,T), clause(X).
+arg_no_valid(E,T,X,L,0) :- meta(E,T,L,2), clause(X,L,-1), timepoint(E,T), clause(X).
+arg_no_valid(E,T,X,L,0) :- meta(E,T,L,0), clause(X,L,1), timepoint(E,T), clause(X).
 
 % We count how many valid arguments there are per clause.
-count_arguments_valid_clause(E,T,X,V) :- V = #count{L : arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
+count_arg_valid_clause(E,T,X,V) :- V = #count{L : arg_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
 % We count the number of arguments per clause.
-count_arguments_clause(X,V) :- V = #count{L : clause(X,L,W)}, clause(X).
+count_arg_clause(X,V) :- V = #count{L : clause(X,L,W)}, clause(X).
 
 % We calculate the maximum value among all valid arguments associated with the same clause.
-maxi(E,T,X,V) :- V = #max{W : arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
+maxi(E,T,X,V) :- V = #max{W : arg_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
 % We update the clause value to 0 when there is an invalid argument within the clause.
-update(E,T,clause,X,0) :- arguments_no_valid(E,T,X,L,0).
+update(E,T,clause,X,0) :- arg_no_valid(E,T,X,L,0).
 % We update the clause value to 0 when the number of arguments per clause does not match the number of valid arguments per clause.
-update(E,T,clause,X,0) :- count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 != V4.
+update(E,T,clause,X,0) :- count_arg_clause(X,V3), count_arg_valid_clause(E,T,X,V4), V3 != V4.
 % We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is not 2.
-update(E,T,clause,X,1) :- maxi(E,T,X,V1), V1 != 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+update(E,T,clause,X,1) :- maxi(E,T,X,V1), V1 != 2, count_arg_clause(X,V3), count_arg_valid_clause(E,T,X,V4), V3 = V4. 
 % We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and we have a value of 1 for valid arguments. 
-update(E,T,clause,X,1) :- arguments_valid(E,T,X,L,1), count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+update(E,T,clause,X,1) :- arg_valid(E,T,X,L,1), count_arg_clause(X,V3), count_arg_valid_clause(E,T,X,V4), V3 = V4. 
 % We update the clause value to 2 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is 2.
-update(E,T,clause,X,2) :- maxi(E,T,X,V1), V1 = 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+update(E,T,clause,X,2) :- maxi(E,T,X,V1), V1 = 2, count_arg_clause(X,V3), count_arg_valid_clause(E,T,X,V4), V3 = V4. 
 
 dnf(D) :- dnf(D,_).
 
