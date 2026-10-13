@@ -1,9 +1,10 @@
 #const maxsize = -1.
 % #const maxrss = -1.
 
+
 #program base.
 
-%% Data normalization
+%% Sata normalization
 
 obsSpec(E,T,S) :- obs(E,T,S,X).
 obsSpec(E,T,S) :- clamped(E,S,X), timepoint(E,T).
@@ -59,30 +60,30 @@ meta(E,T,L,V2) :- clamped(E,L,V1), V1 = -1, convert(V1,V2), nextTP(E,T,_).
 % Clause update
 
 % We check whether the arguments are valid, this means if the value of the clause matches the value of the meta-state within the same argument, if it is valid, it will retain its value.
-checked_arguments_valid(E,T,X,L,C) :- meta(E,T,L,C), clause(X,L,V), convert(V,C), timepoint(E,T), clause(X).
+arguments_valid(E,T,X,L,C) :- meta(E,T,L,C), clause(X,L,V), convert(V,C), timepoint(E,T), clause(X).
 
 % If the values ​​are not valid, the argument will have a value of zero. It is invalid when the clause value is -1 and the meta-state is 1 or 2, or if the clause value is 1 and the meta-state is 0.
-checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,1), clause(X,L,-1), timepoint(E,T), clause(X).
-checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,2), clause(X,L,-1), timepoint(E,T), clause(X).
-checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,0), clause(X,L,1), timepoint(E,T), clause(X).
+arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,1), clause(X,L,-1), timepoint(E,T), clause(X).
+arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,2), clause(X,L,-1), timepoint(E,T), clause(X).
+arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,0), clause(X,L,1), timepoint(E,T), clause(X).
 
 % We count how many valid arguments there are per clause.
-count_arguments_valid_clause(E,T,X,V) :- V = #count{L : checked_arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
+count_arguments_valid_clause(E,T,X,V) :- V = #count{L : arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
 % We count the number of arguments per clause.
 count_arguments_clause(X,V) :- V = #count{L : clause(X,L,W)}, clause(X).
 
 % We calculate the maximum value among all valid arguments associated with the same clause.
-maxi(E,T,X,V) :- V = #max{W : checked_arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
+maxi(E,T,X,V) :- V = #max{W : arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
 % We update the clause value to 0 when there is an invalid argument within the clause.
-update(E,T,clause,X,0) :- checked_arguments_no_valid(E,T,X,L,0).
+update(E,T,clause,X,0) :- arguments_no_valid(E,T,X,L,0).
 % We update the clause value to 0 when the number of arguments per clause does not match the number of valid arguments per clause.
 update(E,T,clause,X,0) :- count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 != V4.
 % We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is not 2.
 update(E,T,clause,X,1) :- maxi(E,T,X,V1), V1 != 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
 % We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and we have a value of 1 for valid arguments. 
-update(E,T,clause,X,1) :- checked_arguments_valid(E,T,X,L,1), count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+update(E,T,clause,X,1) :- arguments_valid(E,T,X,L,1), count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
 % We update the clause value to 2 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is 2.
 update(E,T,clause,X,2) :- maxi(E,T,X,V1), V1 = 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
 
@@ -163,7 +164,7 @@ path(U,V) :- path(U,W); path(W,V).
 :- not minSize #sum {L,I,J : dnf(I,J) , hyper(I,J,L)} maxSize.
 
 
-% We consider a penalty when the guessed and the measured data have different values.
+% Here, we consider a penalty when the guessed and the measured data have different values.
 
 %#program minimize_weight.
 %#minimize {Erg@2,E,T,S : measured(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), Erg=0, V=W}.
@@ -176,7 +177,7 @@ path(U,V) :- path(U,W); path(W,V).
 %         Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), obs(E,T,S,M), Erg=W-V, V < W} > maxWeight.                   
 
 
-% We consider the penalty based on the distance to the thresholds of 30 and 60; we divide the interval between 30 and 60 into two sections, with the aim of approaching the corresponding threshold in each section.
+% Here, we consider the penalty based on the distance to the thresholds of 30 and 60; we divide the interval between 30 and 60 into two sections, with the aim of approaching the corresponding threshold in each section.
 
 #program minimize_weight.
 
