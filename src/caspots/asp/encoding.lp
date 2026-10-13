@@ -163,7 +163,7 @@ path(U,V) :- path(U,W); path(W,V).
 :- not minSize #sum {L,I,J : dnf(I,J) , hyper(I,J,L)} maxSize.
 
 
-% Here, we consider a penalty when the guessed and the measured data have different values.
+% We consider a penalty when the guessed and the measured data have different values.
 
 %#program minimize_weight.
 %#minimize {Erg@2,E,T,S : measured(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), Erg=0, V=W}.
@@ -176,7 +176,7 @@ path(U,V) :- path(U,W); path(W,V).
 %         Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), obs(E,T,S,M), Erg=W-V, V < W} > maxWeight.                   
 
 
-% Here, we consider the penalty based on the distance to the thresholds of 30 and 60; we divide the interval between 30 and 60 into two sections, with the aim of approaching the corresponding threshold in each section.
+% We consider the penalty based on the distance to the thresholds of 30 and 60; we divide the interval between 30 and 60 into two sections, with the aim of approaching the corresponding threshold in each section.
 
 #program minimize_weight.
 
