@@ -3,13 +3,14 @@
 
 #program base.
 
-%% data normalization
+%% Data normalization
 
 obsSpec(E,T,S) :- obs(E,T,S,X).
 obsSpec(E,T,S) :- clamped(E,S,X), timepoint(E,T).
 species(S) :- node(S,_).
 unobsSpec(E,T,S) :- timepoint(E,T), species(S), not obsSpec(E,T,S).
 
+% Now we include the value 2 and we have two thresholds at 30 and 60
 measured(E,T,S,2) :- obs(E,T,S,X), X >= 60.
 measured(E,T,S,1) :- obs(E,T,S,X), X < 60, X >= 30.
 measured(E,T,S,0) :- obs(E,T,S,X), X < 30.
@@ -30,87 +31,100 @@ last(E,T) :- maxtp(E,T).
 clause(X) :- clause(X,_,_).
 
 toGuess(E,T,S) :- obs(E,T,S,X).
+
+% We consider the value 2 for the guessed data.
 1{guessed(E,T,S,(2;1;0))}1  :- toGuess(E,T,S).
 1{guessed(E,T,S,(2;1;0))}1  :- unobsSpec(E,T,S).
 1{measured(E,T,S,(2;1;0))}1 :- unobsSpec(E,T,S).
+
 %no errors in the unmeasured species
 :-  unobsSpec(E,T,S), measured(E,T,S,V), not guessed(E,T,S,V).
 
 %i have to have the same precondition (time 0) in all experiments
 :- unobsSpec(E1,0,S), unobsSpec(E2,0,S), E1 < E2, measured(E1,0,S,V), not measured(E2,0,S,V).
 
+%% Support consistency
 
-%% support consistency
+meta(E,T,L,V) :- guessed(E,T,L,V), nextTP(E,T,_).
 
-supp(E,T,L,V) :- guessed(E,T,L,V), nextTP(E,T,_).
+% We maintained that the clause takes a value equal to the sign of the edge (-1 or 1), and allowed for the possibility that the 1 could be either a 1 or a 2.
 convert(-1,0).
 convert(1,1).
-convert(2,2).
-supp(E,T,L,V2) :- clamped(E,L,V1), convert(V1,V2), nextTP(E,T,_).
+convert(1,2).
 
-% We derive all values that we can potentially reach by a transition from the state u:
+% If the edge sign is not -1, the meta-state value will match the clamped value (1 or 2); if the sign value is -1, the meta-state will have a value of 0.
+meta(E,T,L,V) :- clamped(E,L,V), V != -1, nextTP(E,T,_).
+meta(E,T,L,V2) :- clamped(E,L,V1), V1 = -1, convert(V1,V2), nextTP(E,T,_).
 
-%ex_supp(E,T,clause,X,1) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C); timepoint(E,T), clause(X).
+% Clause update
 
-ex_supp(E,T,clause,X,1) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C), V != 2; timepoint(E,T), clause(X).   
-ex_supp(E,T,clause,X,2) :- supp(E,T,L,C) : clause(X,L,V), convert(V,C), V = 2; timepoint(E,T), clause(X).   
+% We check whether the arguments are valid, this means if the value of the clause matches the value of the meta-state within the same argument, if it is valid, it will retain its value.
+checked_arguments_valid(E,T,X,L,C) :- meta(E,T,L,C), clause(X,L,V), convert(V,C), timepoint(E,T), clause(X).
 
-%ex_supp(E,T,clause,X,1) :- supp(E,T,L,1) : clause(X,L,1), convert(1,1); timepoint(E,T), clause(X).
-%ex_supp(E,T,clause,X,1) :- supp(E,T,L,0) : clause(X,L,-1), convert(-1,0); timepoint(E,T), clause(X).
-%ex_supp(E,T,clause,X,2) :- supp(E,T,L,2) : clause(X,L,2), convert(2,2); timepoint(E,T), clause(X).
+% If the values ​​are not valid, the argument will have a value of zero. It is invalid when the clause value is -1 and the meta-state is 1 or 2, or if the clause value is 1 and the meta-state is 0.
+checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,1), clause(X,L,-1), timepoint(E,T), clause(X).
+checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,2), clause(X,L,-1), timepoint(E,T), clause(X).
+checked_arguments_no_valid(E,T,X,L,0) :- meta(E,T,L,0), clause(X,L,1), timepoint(E,T), clause(X).
 
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,0), clause(X,L,1).
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,1), clause(X,L,-1).
+% We count how many valid arguments there are per clause.
+count_arguments_valid_clause(E,T,X,V) :- V = #count{L : checked_arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,0), clause(X,L,2).
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,2), clause(X,L,-1).
+% We count the number of arguments per clause.
+count_arguments_clause(X,V) :- V = #count{L : clause(X,L,W)}, clause(X).
 
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,1), clause(X,L,2).
-ex_supp(E,T,clause,X,0) :- supp(E,T,L,2), clause(X,L,1).
+% We calculate the maximum value among all valid arguments associated with the same clause.
+maxi(E,T,X,V) :- V = #max{W : checked_arguments_valid(E,T,X,L,W)}, timepoint(E,T), clause(X).
 
+% We update the clause value to 0 when there is an invalid argument within the clause.
+update(E,T,clause,X,0) :- checked_arguments_no_valid(E,T,X,L,0).
+% We update the clause value to 0 when the number of arguments per clause does not match the number of valid arguments per clause.
+update(E,T,clause,X,0) :- count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 != V4.
+% We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is not 2.
+update(E,T,clause,X,1) :- maxi(E,T,X,V1), V1 != 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+% We update the clause value to 1 when the number of arguments per clause matches the number of valid arguments per clause, and we have a value of 1 for valid arguments. 
+update(E,T,clause,X,1) :- checked_arguments_valid(E,T,X,L,1), count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
+% We update the clause value to 2 when the number of arguments per clause matches the number of valid arguments per clause, and the maximum value of the clause's valid arguments is 2.
+update(E,T,clause,X,2) :- maxi(E,T,X,V1), V1 = 2, count_arguments_clause(X,V3), count_arguments_valid_clause(E,T,X,V4), V3 = V4. 
 
 dnf(D) :- dnf(D,_).
-ex_supp(E,T,dnf,X,1) :- ex_supp(E,T,clause,C,1), dnf(X,C).
-ex_supp(E,T,dnf,X,2) :- ex_supp(E,T,clause,C,2), dnf(X,C).
-ex_supp(E,T,dnf,X,0) :- ex_supp(E,T,clause,C,0) : dnf(X,C); dnf(X), nextTP(E,T,_).
 
-opposite(0,1).
-opposite(0,2).
+% We update the dnf value to 2 when there is an update of the clause equal to 2.
+update(E,T,dnf,X,2) :- update(E,T,clause,C,2), dnf(X,C). 
+% We update the dnf value to 0 when there is all updates of the clause are equal to 0.
+update(E,T,dnf,X,0) :- update(E,T,clause,C,0) : dnf(X,C); dnf(X), nextTP(E,T,_).   
+% We update the dnf value to 1 when there is all updates of the clause are equal to 1.
+update(E,T,dnf,X,1) :- update(E,T,clause,C,1) : dnf(X,C); dnf(X), nextTP(E,T,_).   
+% We update the dnf value to 1 when there are clause updates equal to 0 and 1.
+update(E,T,dnf,X,1) :- update(E,T,clause,C1,0), update(E,T,clause,C2,1), dnf(X,C1), dnf(X,C2).   
+
+% We add more opposite values
+opposite(0,2).  
+opposite(2,0). 
 opposite(1,0).
-opposite(1,2).
-opposite(2,0).
-opposite(2,1).
+opposite(0,1).
+
 
 clamped(E,S) :- clamped(E,S,V).
+% If we do not have guessed the opposing thing, we can have external support
+update(E,T,L,X) :- formula(L,D), update(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), not guessed(E,T2,L,Y), nextTP(E,T,T2).  
+% If we guessed the opposing thing, the opposing thing needs to be justified before we can give support
+{update(E,T,L,X)} :- formula(L,D), update(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), guessed(E,T2,L,Y), nextTP(E,T,T2). 
 
-%if we do not have guessed the opposing thing, we can have external support
+meta(E,T,L,X) :- update(E,T,L,X).
 
-ex_supp(E,T,L,X) :- formula(L,D), ex_supp(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), not guessed(E,T2,L,Y), nextTP(E,T,T2).
+:- guessed(E,T2,S,V), not meta(E,T1,S,V), nextTP(E,T1,T2).
 
-% if we guessed the opposing thing, the opposing thing needs to be justified before we can give support
-
-{ex_supp(E,T,L,X)} :- formula(L,D), ex_supp(E,T,dnf,D,X), not clamped(E,L), opposite(X,Y), guessed(E,T2,L,Y), nextTP(E,T,T2).
-
-supp(E,T,L,X) :- ex_supp(E,T,L,X).
-
-% The next state y belongs to the meta-state u (y ∈ u):
-% The rule ensures that the state at time-point T + 1 is in the meta-state reachable from time-point T .
-
-:- guessed(E,T2,S,V), not supp(E,T1,S,V), nextTP(E,T1,T2).
-
-% If for some i, x_i = y_i and {0, 1} = u_i then there exists a transition f_i(z) = y_i:
-% The rule implements the condition in the third item in the definition of support consistency described in the Formal Description section. It states
-% that if a state at time-point T + 1 has value V and in the update predicate it has value W then there must exist an update in-between to recover the final value V .
-
-:- guessed(E,T2,L,Y), opposite(X,Y), ex_supp(E,T1,L,X), not ex_supp(E,T1,L,Y), nextTP(E,T1,T2).
+:- guessed(E,T2,L,Y), opposite(X,Y), update(E,T1,L,X), not update(E,T1,L,Y), nextTP(E,T1,T2).
 
 
 #program guess_bn.
+%#program base.
 
 % guess a formula compatible with the pkn for each node
 formula(V,I)              :- node(V,I); hyper(I,_,_).
 {dnf(I,J) : hyper(I,J,N)} :- formula(V,I).
 clause(J,V,S)             :- edge(J,V,S); dnf(_,J).
+clause(J,V,2)             :- edge(J,V,S); dnf(_,J). 
 
 % paths derived from the guess Boolean network
 path(U,V) :- formula(V,I); dnf(I,J); edge(J,U,_).
@@ -130,41 +144,84 @@ path(U,V) :- path(U,W); path(W,V).
 %:- maxrss + 1 #sum {W,E,V,S : not eval(E,V,-S) , obs(E,V,D) , rss(D,V,S,W) }; maxrss >= 0.
 
 #program guess_bn_controllable.
-
 % V is not reached by any stimulus (non-controllable)
 :- dnf(I,J); edge(J,V,_); not stimulus(V);
    not path(U,V) : stimulus(U).
 
 #program diversity.
-
 #heuristic dnf(I,J) : before(I,J). [2@2,false] %diversity
 #heuristic dnf(I,J). [1,false] %subset
 #external before(I,J)  : dnf(I,J). %diversity
 
 #program block_solution.
-
 :- dnf(I,J) : (I,J) = @dnf(). % no repeating of answer sets
 
 #program minimize_size.
-
 #minimize{L@1,I,J : dnf(I,J) , hyper(I,J,L)}.
 
 #program fix_size(minSize, maxSize).
-
 :- not minSize #sum {L,I,J : dnf(I,J) , hyper(I,J,L)} maxSize.
+
+
+% Here, we consider a penalty when the guessed and the measured data have different values.
+
+%#program minimize_weight.
+%#minimize {Erg@2,E,T,S : measured(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), Erg=0, V=W}.
+%#minimize {Erg@2,E,T,S : measured(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), Erg=V-W, W < V}.
+%#minimize {Erg@2,E,T,S : measured(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), Erg=W-V, V < W}.
+
+%#program fix_weight(minWeight, maxWeight).
+%:- #sum {Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), obs(E,T,S,M), Erg=0, V=W;
+%         Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), obs(E,T,S,M), Erg=V-W, W < V;
+%         Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), guessed(E,T,S,W), toGuess(E,T,S), obs(E,T,S,M), Erg=W-V, V < W} > maxWeight.                   
+
+
+% Here, we consider the penalty based on the distance to the thresholds of 30 and 60; we divide the interval between 30 and 60 into two sections, with the aim of approaching the corresponding threshold in each section.
 
 #program minimize_weight.
 
 #minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=30-M, M < 30}.
-#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=|M-45|, M >= 30, M < 60}.
 #minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-59, M >= 60}.
+#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-29, M >= 30, M < 45}.
+#minimize {Erg@2,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=60-M, M >= 45, M < 60}.
 
 #program fix_weight(minWeight, maxWeight).
 :- not minWeight #sum {Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=30-M, M < 30;
-                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=|M-45|, M >= 30, M < 60;
+                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-29, M >= 30, M < 45;
+                       Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=60-M, M >= 45, M < 60;
                        Erg,E,T,S : measured(E,T,S,V), not guessed(E,T,S,V), toGuess(E,T,S), obs(E,T,S,M), Erg=M-59, M >= 60} maxWeight.
 
 
-#show formula/2.
-#show dnf/2.
-#show clause/3.
+
+
+
+%#show update/5.
+%#show update/4.
+%#show meta/4.
+%#show guessed/4.
+%#show measured/4.
+%#show toGuess/3.
+
+%#show formula/2.
+%#show dnf/2.
+%#show clause/3.
+%#show hyper/3. 
+%#show path/2.
+%#show edge/3.
+%#show readout/1.
+
+%#show obsSpec/3.
+%#show species/1.
+%#show unobsSpec/3.
+%#show measured/4.
+%#show timepoint/2.
+%#show maxtp/2.
+%#show nextTP/3.
+%#show nnextTP/3.
+%#show last/2.
+%#show clause/1.
+
+%#show clamped/3.
+%#show mini/4.
+%#show maxi/4.
+%#show diff/4.
