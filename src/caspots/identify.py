@@ -38,7 +38,7 @@ class SolverOptions:
     family: Literal["all", "subset", "mincard"] = "subset"
     mincard_tolerance: int = 0
     weight_tolerance: int = 0
-    enum_traces: bool = False
+    enum_traces: bool = True  
     fully_controllable: bool = True
     force_weight: int | None = None
     force_size: int | None = None
@@ -84,7 +84,6 @@ def crunch_data(answer: Sequence[Symbol], predicate: str, factor: float) -> Crun
             data[t][key] = val
             keys.add(key)
     print("I am in crunch_data")
-
     return keys, data
 
 
@@ -106,7 +105,8 @@ def calculate_mse(cd: CrunchedData) -> float:
         if key not in data["obs"]:
             continue
         n += 1
-        cum += (data["obs"][key] - data["bin"][key]) ** 2
+        cum += (data["obs"][key]*2 - data["bin"][key]) ** 2
+        #cum += (data["obs"][key] - data["bin"][key]) ** 2
     print("I am in calculate_mse")
 
     return math.sqrt(cum / n)
@@ -191,6 +191,7 @@ class ASPSample:
         """
         cd_measured = crunch_data(self.atoms, "measured", self.opts.factor)
         cd_guessed = crunch_data(self.atoms, "guessed", self.opts.factor)
+        
         mse0 = calculate_mse(cd_measured)
         mse = calculate_mse(cd_guessed)
         print("I am in mse")
@@ -227,6 +228,7 @@ class ASPSample:
         for a in self.atoms:
             if a.name == "guessed":
                 eid, t, node, value = a.arguments
+
                 if node not in dataset.readout:
                     continue
                 if dataset.experiments[eid].obs[t][node] != value:
