@@ -97,7 +97,7 @@ update(E,T,dnf,X,1) :- update(E,T,clause,C,1) : dnf(X,C); dnf(X), nextTP(E,T,_).
 % We update the dnf value to 1 when there are clause updates equal to 0 and 1.
 update(E,T,dnf,X,1) :- update(E,T,clause,C1,0), update(E,T,clause,C2,1), dnf(X,C1), dnf(X,C2).   
 
-% We add more opposite values
+% We add opposite values
 opposite(0,2).  
 opposite(2,0). 
 opposite(1,0).
