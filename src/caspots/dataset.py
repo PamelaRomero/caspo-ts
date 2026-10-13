@@ -61,7 +61,14 @@ class Dataset:
         return int(round(self.dfactor * value))
 
     def binarize(self, dvalue):
-        return 1 if dvalue >= self.dfactor / 2 else 0
+        #return 1 if dvalue >= self.dfactor / 2 else 0
+        if dvalue >= 60: 
+            new_value = 2
+        elif (dvalue < 60) and (dvalue >= 30): 
+            new_value = 1
+        else:
+            new_value = 0
+        return new_value
 
     def load_from_midas(self, midas, graph):
         df = pd.read_csv(midas)
